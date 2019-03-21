@@ -8,6 +8,7 @@ import cv2
 from os.path import join
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+from multiprocessing import Pool
 
 
 print("create_index version = 2.0")
@@ -302,6 +303,105 @@ def createIndex2():
     df_train.to_csv("train.csv", index=False)
     df_test.to_csv("test.csv", index=False)
 
+    
+    
+def cp_images(scr_paths):
+    
+    new_paths = []
+    for src_path in tqdm(scr_paths):
+        
+        name = os.path.basename(src_path)
+        dst_path = os.path.join('/data1/test_fakeidcard_img/train/', name)
+        new_paths.append(dst_path)
+        if os.path.exists(dst_path):
+            continue
+        # shutil.copyfile(src_path, dst_path)
+        
+        img = cv2.imread(src_path)
+        img = cv2.resize(img, (500,500))
+        cv2.imwrite(dst_path, img)
+    
+    return new_paths
+    
+def createIndex3():
+
+    train_csv = "train.csv"
+    test_csv = "test.csv"
+
+    if os.path.exists(train_csv) & os.path.exists(test_csv) & False:
+        return
+
+    fake = glob.glob(
+        join("/data2/ai_langchao/Remakeface_PC/remake/logo/", "*.jpg")
+    ) + glob.glob(join("/data2/ai_langchao/Remakeface_PC/remake/nologo/", "*.jpg"))
+
+    fake += (
+        glob.glob(join("/data2/ai_langchao/Remake_PHONE2/remake_PHONE/", "*.jpg"))
+        + glob.glob(join("/data/fake_faces_label_1126/0", "*.jpg"))
+        + glob.glob(join("/data2/ai_pingyunbz/1126-1127/DG_6", "*.jpg"))
+    )
+    
+    real = []
+    real = glob.glob(join("/data2/ai_langchao/Remakeface_PC/source/", "*.jpg"))
+    real += glob.glob(join("/data2/ai_langchao/Remake_PHONE2/source/", "*.jpg")) 
+    real += glob.glob(join("/data1/test_fakeidcard_img/bz_img/", "*.jpg"))[:20000] 
+    real += glob.glob(join("/data1/test_fakeidcard_img/feibz_img/", "*.jpg"))
+    real += glob.glob(join("/data1/test_fakeidcard_img/nowater_o2o/", "*.jpg"))
+    real += glob.glob(join("/data1/test_fakeidcard_img/waterimg/", "*.jpg"))
+    
+    
+
+    df_fake = pd.DataFrame({"path": fake})
+    df_fake["label"] = 0
+
+    df_real = pd.DataFrame({"path": real})
+    df_real["label"] = 1
+    print(df_fake.shape[0], df_real.shape[0])
+    
+    df_fake = df_fake.sample(15000)
+    
+    shape_0 = min(df_fake.shape[0] * 5, df_real.shape[0])
+
+    df_real = df_real.sample(shape_0)
+
+    df = pd.concat([df_fake, df_real], axis=0)
+    
+    print('all image =', df.shape)
+    
+    # df = df.sample(1000)
+    
+    df_train, df_test = train_test_split(df, test_size=0.3)
+    # cp_train = lambda x: os.path.join( 'cp_images/train', os.path.basename(x))
+    # cp_test = lambda x: os.path.join( 'cp_images/test', os.path.basename(x))
+    
+    shutil.rmtree('/data1/test_fakeidcard_img/train')
+    shutil.rmtree('/data1/test_fakeidcard_img/test')
+    os.mkdir('/data1/test_fakeidcard_img/train')
+    os.mkdir('/data1/test_fakeidcard_img/test')
+    
+    train_paths = np.array_split(list(df_train.path), 20)
+    test_paths = np.array_split(list(df_test.path), 20)
+    
+    with Pool(20) as pool :
+        
+        new_train_paths = list(
+            pool.imap(cp_images, train_paths)
+        )
+        
+    with Pool(20) as pool :
+        
+        new_test_paths = list(
+            pool.imap(cp_images, test_paths)
+        )
+        
+    new_train_paths = np.hstack(new_train_paths)
+    new_test_paths = np.hstack(new_test_paths)
+    df_train['path'] = new_train_paths
+    df_test['path'] = new_test_paths
+    
+    df_train.to_csv("train.csv", index=False)
+    df_test.to_csv("test.csv", index=False)    
+    
 
 if __name__ == "__main__":
 
@@ -318,7 +418,7 @@ if __name__ == "__main__":
     true_paths = ["/data2/Aiaudit_Gmcc/train/Model_FaceCompare/test_160_20190124/"]
 
     # createIndex(fake_paths, true_paths)
-    createIndex2()
+    createIndex3()
     df_train, df_test = readIndex()
     print(df_train["label"].value_counts())
     print(df_test["label"].value_counts())
