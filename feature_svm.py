@@ -3,27 +3,11 @@
 import os, glob, sys
 from tqdm import tqdm
 
-from create_index_face import readIndex
+from create_index_face import readIndex, readDirect
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import MinMaxScaler
-
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.model_selection import KFold, StratifiedKFold
-from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.naive_bayes import GaussianNB
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.svm import SVC
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import GridSearchCV
-
-
-from create_index_face import readDirect
 from multiprocessing import Pool
 from sklearn.externals import joblib
 
@@ -288,7 +272,7 @@ def train_data(df, replace=False):
         np.save(feat_path, features)
         np.save(label_path, labels)
 
-    return features, labels
+    return features, labels.ravel()
 
 
 def test_data(df, replace=False):
@@ -307,8 +291,36 @@ def test_data(df, replace=False):
         np.save(feat_path, features)
         np.save(label_path, labels)
 
-    return features, labels
+    return features, labels.ravel()
 
+    
+def valid_data(replace=False):
+    
+    fake_paths = glob.glob('valid/valid_0/*.jpg')
+    true_paths = glob.glob('valid/valid_1/*.jpg')
+    
+    df_fake = pd.DataFrame({'path': fake_paths})
+    df_fake['label'] = 0
+    df_true = pd.DataFrame({'path': true_paths})
+    df_true['label'] = 1
+    
+    df = pd.concat([df_true, df_fake], axis=0).sample(frac=1)
+    
+    feat_path = "data/valid_feat.npy"
+    label_path = "data/valid_label.npy"
+
+    if os.path.exists(feat_path) and os.path.exists(label_path) and (not replace):
+
+        features = np.load(feat_path)
+        labels = np.load(label_path)
+
+    else:
+        print("creating feature of training data")
+        features, labels = main_data(df, replace=replace)
+        np.save(feat_path, features)
+        np.save(label_path, labels)
+
+    return features, labels.ravel()
 
 def main():
 
@@ -341,5 +353,5 @@ if __name__ == "__main__":
     df_train, df_test = readIndex()
 
     # features, labels = train_data(df_train.sample(20000), replace=False)
-    features, labels = test_data(df_test, replace=False)
+    features, labels = valid_data(replace=True)
     print(features.shape, labels.shape)
