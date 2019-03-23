@@ -33,10 +33,6 @@ bins = 8
 seed = 9
 
 
-class AntiModel:
-    def __init__(self):
-        extract_feature = ExtractFeature()
-
 
 def do_sift_batch(image_paths):
 
@@ -211,12 +207,13 @@ class ExtractFeature:
         image = cv2.imread(img_path)
         image = cv2.resize(image, fixed_size)
 
-        # fv_hu_moments = self.fd_hu_moments(image) # 7
-        # fv_haralick = self.fd_haralick(image) # 13
+        fv_hu_moments = self.fd_hu_moments(image) # 7
+        fv_haralick = self.fd_haralick(image) # 13
         fv_histogram = self.fd_histogram(image) # 512
         fv_lbp = self.fd_lbp(image) # 26
         fv_sift = self.fd_sift(image) # 128
         
+        # feature = np.hstack([fv_hu_moments, fv_lbp, fv_sift])
         feature = np.hstack([fv_histogram, fv_haralick, fv_hu_moments, fv_lbp, fv_sift])
         return feature
         
