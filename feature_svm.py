@@ -211,13 +211,15 @@ class ExtractFeature:
         image = cv2.imread(img_path)
         image = cv2.resize(image, fixed_size)
 
-        fv_hu_moments = self.fd_hu_moments(image)
-        fv_haralick = self.fd_haralick(image)
-        fv_histogram = self.fd_histogram(image)
-        fv_lbp = self.fd_lbp(image)
-        fv_sift = self.fd_sift(image)
+        # fv_hu_moments = self.fd_hu_moments(image) # 7
+        # fv_haralick = self.fd_haralick(image) # 13
+        fv_histogram = self.fd_histogram(image) # 512
+        fv_lbp = self.fd_lbp(image) # 26
+        fv_sift = self.fd_sift(image) # 128
+        
         feature = np.hstack([fv_histogram, fv_haralick, fv_hu_moments, fv_lbp, fv_sift])
         return feature
+        
 
     def generate_features(self, df):
 
@@ -352,6 +354,7 @@ if __name__ == "__main__":
 
     df_train, df_test = readIndex()
 
-    # features, labels = train_data(df_train.sample(20000), replace=False)
-    features, labels = valid_data(replace=True)
+    features, labels = train_data(df_train.sample(20000), replace=True)
+    print(features.shape, labels.shape)
+    features, labels = test_data(df_test.sample(5000), replace=True)
     print(features.shape, labels.shape)
