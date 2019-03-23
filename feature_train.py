@@ -49,6 +49,44 @@ class AntiModel:
         return preds.min() > threshold
 
 
+        
+def train_diff_feature(df_train, df_test):
+    
+    
+    x_train, y_train = train_data(df_train, replace=False)
+    x_valid, y_valid = valid_data(replace=False)
+    
+    train_histogram = x_train[:, 0:512]
+    train_haralick = x_train[:, 512:525]
+    train_hu_moments = x_train[:, 525:532]
+    train_lbp = x_train[:, 532:558]
+    train_sift = x_train[:, 558:]
+    
+    valid_histogram = x_valid[:, 0:512]
+    valid_haralick = x_valid[:, 512:525]
+    valid_hu_moments = x_valid[:, 525:532]
+    valid_lbp = x_valid[:, 532:558]
+    valid_sift = x_valid[:, 558:]
+    
+    train_features = [train_histogram, train_haralick, train_hu_moments, train_lbp, train_sift]
+    valid_features = [valid_histogram, valid_haralick, valid_hu_moments, valid_lbp, valid_sift]
+    
+    for train_feature, valid_feature in zip(train_features, valid_features) :
+    
+        model = GradientBoostingClassifier(random_state=9)
+        kfold = KFold(n_splits=3, random_state=7)
+        cv_results = cross_val_score(
+            model,
+            train_feature,
+            y_train,
+            cv=kfold,
+            scoring="accuracy",  # "roc_auc",  #
+        )
+        msg = "%s: %f (%f)" % ('model', cv_results.mean(), cv_results.std())
+        print(train_feature.shape, msg)
+        model.fit(train_feature, y_train)
+        print(confusion_matrix(y_valid, model.predict(valid_feature)))
+        
 def train_main(df_train, df_test):
 
     num_trees = 500
@@ -93,7 +131,9 @@ if __name__ == "__main__":
 
     df_train, df_test = readIndex()
 
-    models, preds = train_main(df_train, df_test)
+    # models, preds = train_main(df_train, df_test)
     
-    for model in models:
-        pickle.dump(model[1], open('log/' + model[0].lower(), "wb"))
+    # for model in models:
+        # pickle.dump(model[1], open('log/' + model[0].lower(), "wb"))
+    
+    train_diff_feature(df_train, df_test)
