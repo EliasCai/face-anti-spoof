@@ -376,7 +376,7 @@ def get_feature_hog(df):
         features.append(feat_hog)
         
     features = np.vstack(features)  
-    labels = df['label'].values
+    labels = df['label'].values.reshape(-1, 1)
     
     return features, labels
 
