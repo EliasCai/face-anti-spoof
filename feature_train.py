@@ -21,6 +21,9 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV
+from sklearn import manifold
+from sklearn.decomposition import PCA
+
 
 
 class AntiModel:
@@ -71,9 +74,25 @@ def train_diff_feature(df_train, df_test):
     train_features = [train_histogram, train_haralick, train_hu_moments, train_lbp, train_sift]
     valid_features = [valid_histogram, valid_haralick, valid_hu_moments, valid_lbp, valid_sift]
     
+    pca = PCA(n_components=20)
+    tsne = manifold.TSNE(n_components=2, init='pca', random_state=0)
+    
+    # all_hist = np.vstack([train_histogram, train_histogram])
+    # all_tsne = tsne.fit_transform(all_hist)
+    
+    # train_tsne = all_tsne[:train_histogram.shape[0]]
+    # valid_tsne = all_tsne[train_histogram.shape[0]:]
+    
+    train_pca = pca.fit_transform(train_histogram)
+    valid_pca = pca.transform(valid_histogram)
+    
+    train_features = [train_histogram, train_pca]
+    valid_features = [valid_histogram, valid_pca]
+    
     for train_feature, valid_feature in zip(train_features, valid_features) :
     
         model = GradientBoostingClassifier(random_state=9)
+        
         kfold = KFold(n_splits=3, random_state=7)
         cv_results = cross_val_score(
             model,
