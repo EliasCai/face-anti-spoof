@@ -10,6 +10,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from multiprocessing import Pool
 from sklearn.externals import joblib
+from skimage.feature import hog
 
 # import lightgbm as lgb
 import numpy as np
@@ -31,7 +32,6 @@ bins = 8
 
 # seed for reproducing same results
 seed = 9
-
 
 
 def do_sift_batch(image_paths):
@@ -178,6 +178,19 @@ class ExtractFeature:
         feature = cv2.HuMoments(cv2.moments(image)).flatten()
         return feature
 
+    def fd_hog(self, image):
+        ppc = 16
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        feature, hog_image = hog(
+            image,
+            orientations=8,
+            pixels_per_cell=(ppc, ppc),
+            cells_per_block=(4, 4),
+            block_norm="L2",
+            visualize=True,
+        )
+        return feature
+
     def fd_sift(self, image):
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -188,6 +201,12 @@ class ExtractFeature:
         standard = self.scaler.transform(vocabulary.reshape(1, -1))
         return standard.ravel()
 
+    def fd_cluster(self, feature):
+
+        kmeans_ret = self.kmeans_obj.predict(feature)
+
+        return kmeans_ret
+
     def transform_vocabulary(self, feature):
 
         left = pd.Series(np.zeros(128), index=range(128))
@@ -196,27 +215,42 @@ class ExtractFeature:
         a = left.align(right, join="left", fill_value=0)
         return a[1].values
 
-    def fd_cluster(self, feature):
-
-        kmeans_ret = self.kmeans_obj.predict(feature)
-
-        return kmeans_ret
-
-    def extract_features(self, img_path):
+    def extract_features(
+        self,
+        img_path,
+        hu_moments=True,
+        haralick=True,
+        histogram=True,
+        lbp=True,
+        sift=True,
+        hog=True,
+    ):
 
         image = cv2.imread(img_path)
         image = cv2.resize(image, fixed_size)
+        row = []
+        if hu_moments:
+            fv_hu_moments = self.fd_hu_moments(image)  # 7
+            row.append(fv_hu_moments)
+        if haralick:
+            fv_haralick = self.fd_haralick(image)  # 13
+            row.append(fv_haralick)
+        if histogram:
+            fv_histogram = self.fd_histogram(image)  # 512
+            row.append(fv_histogram)
+        if lbp:
+            fv_lbp = self.fd_lbp(image)  # 26
+            row.append(fv_lbp)
+        if sift:
+            fv_sift = self.fd_sift(image)  # 128
+            row.append(fv_sift)
+        if hog:
+            fv_hog = self.fd_hog(image)
+            row.append(fv_hog)
 
-        fv_hu_moments = self.fd_hu_moments(image) # 7
-        fv_haralick = self.fd_haralick(image) # 13
-        fv_histogram = self.fd_histogram(image) # 512
-        fv_lbp = self.fd_lbp(image) # 26
-        fv_sift = self.fd_sift(image) # 128
-        
         # feature = np.hstack([fv_hu_moments, fv_lbp, fv_sift])
-        feature = np.hstack([fv_histogram, fv_haralick, fv_hu_moments, fv_lbp, fv_sift])
+        feature = np.hstack(row)
         return feature
-        
 
     def generate_features(self, df):
 
@@ -292,19 +326,19 @@ def test_data(df, replace=False):
 
     return features, labels.ravel()
 
-    
+
 def valid_data(replace=False):
-    
-    fake_paths = glob.glob('valid/valid_0/*.jpg')
-    true_paths = glob.glob('valid/valid_1/*.jpg')
-    
-    df_fake = pd.DataFrame({'path': fake_paths})
-    df_fake['label'] = 0
-    df_true = pd.DataFrame({'path': true_paths})
-    df_true['label'] = 1
-    
+
+    fake_paths = glob.glob("valid/valid_0/*.jpg")
+    true_paths = glob.glob("valid/valid_1/*.jpg")
+
+    df_fake = pd.DataFrame({"path": fake_paths})
+    df_fake["label"] = 0
+    df_true = pd.DataFrame({"path": true_paths})
+    df_true["label"] = 1
+
     df = pd.concat([df_true, df_fake], axis=0).sample(frac=1)
-    
+
     feat_path = "data/valid_feat.npy"
     label_path = "data/valid_label.npy"
 
@@ -320,6 +354,52 @@ def valid_data(replace=False):
         np.save(label_path, labels)
 
     return features, labels.ravel()
+
+
+def get_feature_hog(df):
+
+    et = ExtractFeature()
+    
+    features = []
+    
+    for img_path in tqdm(list(df['path'])):
+    
+        feat_hog = et.extract_features(
+            img_path,
+            hu_moments=False,
+            haralick=False,
+            histogram=False,
+            lbp=False,
+            sift=False,
+            hog=True,
+        )
+        features.append(feat_hog)
+        
+    features = np.vstack(features)  
+    labels = df['label'].values
+    
+    return features, labels
+
+    
+def parallel_feature_hog(df, poolNum=20):    
+    
+    
+    split_df = np.array_split(df, poolNum)
+
+    with joblib.Parallel(n_jobs=poolNum, verbose=0) as parallel:
+        # result = parallel(joblib.delayed(parallel_features)(d) for d in split_df)
+        result = parallel(joblib.delayed(get_feature_hog)(d) for d in split_df)
+
+    features = np.vstack([r[0] for r in result])
+    labels = np.vstack([r[1] for r in result])
+    
+    feat_path = "data/train_feat_hog.npy"
+    label_path = "data/train_label_hog.npy"
+    
+    np.save(feat_path, features)
+    np.save(label_path, labels)
+    
+    return features, labels
 
 def main():
 
@@ -351,7 +431,10 @@ if __name__ == "__main__":
 
     df_train, df_test = readIndex()
 
-    features, labels = train_data(df_train.sample(20000), replace=True)
-    print(features.shape, labels.shape)
-    features, labels = test_data(df_test.sample(5000), replace=True)
+    # features, labels = train_data(df_train.sample(20000), replace=False)
+    # print(features.shape, labels.shape)
+    # features, labels = test_data(df_test.sample(5000), replace=False)
+    # print(features.shape, labels.shape)
+    
+    features, labels = parallel_feature_hog(df_train.sample(4000))
     print(features.shape, labels.shape)
