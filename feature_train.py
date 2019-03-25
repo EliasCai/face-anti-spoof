@@ -51,6 +51,46 @@ class AntiModel:
         preds = np.hstack(preds)
         return preds.min() > threshold
 
+        
+        
+def train_hog():
+
+    feat_path = "data/train_feat_hog.npy"
+    label_path = "data/train_label_hog.npy"
+
+    x_train = np.load(feat_path)
+    y_train = np.load(label_path)
+    
+    feat_path = "data/valid_feat_hog.npy"
+    label_path = "data/valid_label_hog.npy"
+
+    x_valid = np.load(feat_path)
+    y_valid = np.load(label_path)
+    
+    pca = PCA(n_components=100)
+    
+    print(x_train.shape, y_train.shape)
+    train_pca = pca.fit_transform(x_train)
+    valid_pca = pca.transform(x_valid)
+    
+    model = GradientBoostingClassifier(random_state=9)
+    
+    kfold = KFold(n_splits=3, random_state=7)
+    cv_results = cross_val_score(
+        model,
+        train_pca,
+        y_train,
+        cv=kfold,
+        scoring="accuracy",  # "roc_auc",  #
+    )
+    msg = "%s: %f (%f)" % ('model', cv_results.mean(), cv_results.std())
+    
+    model.fit(train_pca, y_train)
+    
+    # print(classification_report(y_test, y_pred))
+
+    print(train_pca.shape, msg)
+    print(confusion_matrix(y_valid, model.predict(valid_pca)))
 
         
 def train_diff_feature(df_train, df_test):
@@ -155,4 +195,5 @@ if __name__ == "__main__":
     # for model in models:
         # pickle.dump(model[1], open('log/' + model[0].lower(), "wb"))
     
-    train_diff_feature(df_train, df_test)
+    # train_diff_feature(df_train, df_test)
+    train_hog()
