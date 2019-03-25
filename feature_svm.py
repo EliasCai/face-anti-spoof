@@ -423,7 +423,8 @@ def parallel_feature_hog(df, poolNum=20):
     features = np.vstack([r[0] for r in result])
     labels = np.vstack([r[1] for r in result])
     
-    
+    np.save(feat_path, features)
+    np.save(label_path, labels)
     
     return features, labels
 
