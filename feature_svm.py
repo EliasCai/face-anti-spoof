@@ -378,6 +378,7 @@ def get_feature_hog(df):
     features = np.vstack(features)  
     labels = df['label'].values.reshape(-1, 1)
     
+    
     return features, labels
 
     
@@ -398,6 +399,31 @@ def parallel_feature_hog(df, poolNum=20):
     
     np.save(feat_path, features)
     np.save(label_path, labels)
+    
+    fake_paths = glob.glob("valid/valid_0/*.jpg")
+    true_paths = glob.glob("valid/valid_1/*.jpg")
+
+    df_fake = pd.DataFrame({"path": fake_paths})
+    df_fake["label"] = 0
+    df_true = pd.DataFrame({"path": true_paths})
+    df_true["label"] = 1
+
+    df = pd.concat([df_true, df_fake], axis=0).sample(frac=1)
+
+    feat_path = "data/valid_feat_hog.npy"
+    label_path = "data/valid_label_hog.npy"
+    
+    
+    split_df = np.array_split(df, poolNum)
+
+    with joblib.Parallel(n_jobs=poolNum, verbose=0) as parallel:
+        # result = parallel(joblib.delayed(parallel_features)(d) for d in split_df)
+        result = parallel(joblib.delayed(get_feature_hog)(d) for d in split_df)
+
+    features = np.vstack([r[0] for r in result])
+    labels = np.vstack([r[1] for r in result])
+    
+    
     
     return features, labels
 
